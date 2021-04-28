@@ -35,7 +35,7 @@ reshape_size=img_size*img_size*3
 
 def preprocess_data():
     arr = []
-    path = "C:/Users/seb/PycharmProjects/nart/flow"
+    path = "C:/Users/seb/PycharmProjects/nart/Data/flow"
     dirs = os.listdir(path)
     for item in dirs:
         if (item == '.DS_Store'):
@@ -166,10 +166,9 @@ def generate_imgnoise(a):
 #     # get the config
 #     def get_config(self):
 #         return {'clip_value': self.clip_value}
+
 def build_discrim():
     ran=RandomNormal(stddev=0.02)
-    # clip=ClipConstraint(0.01)
-
     model=Sequential()
     model.add(Conv2D(64, kernel_size=3, strides=(2, 2), padding='same', kernel_initializer=ran, input_shape=(img_size,img_size,3)))
     model.add(BatchNormalization())
@@ -183,19 +182,17 @@ def build_discrim():
     model.add(Flatten())
     model.add(Dense(1,activation='sigmoid'))
     model.summary()
-
     img=Input(shape=(img_size,img_size,3))
     d=model(img)
     mod=Model(img,d)
     return mod
+
 def build_generator():
     model=Sequential()
     input_shape = 8
     input_size = (input_shape ** 2) * 256
-
-
+    
     model.add(Dense(input_size, input_shape=(100,)))
-
     model.add(Reshape((input_shape, input_shape, 256)))
     model.add(UpSampling2D())
     model.add(Conv2D(256, kernel_size=3,  padding='same'))
@@ -210,21 +207,18 @@ def build_generator():
     model.add(BatchNormalization())
     model.add(LeakyReLU(alpha=0.2))
     model.add(UpSampling2D())
-
     # model.add(Conv2D(256, kernel_size=4,  padding='same'))
     # model.add(BatchNormalization())
     # model.add(LeakyReLU(alpha=0.2))
-
     model.add(Conv2D(3, kernel_size=3,  padding='same', activation=('tanh')))
     model.summary()
-
 
     img=Input(shape=(100,))
     d=model(img)
     mod=Model(img,d)
     return mod
-def save_img(epoch,gen):
 
+def save_img(epoch,gen):
     noise = np.random.normal(0, 1, (1, noise_size))
     gen_img = gen.predict(noise)
     try:
@@ -234,12 +228,8 @@ def save_img(epoch,gen):
         arr = (gen_img[0]-min(gen_img[0]))/(max(gen_img[0])-min(gen_img[0]))
         plt.imsave(('C:/Users/seb/PycharmProjects/nart/epochs_img/epoch-'+str(epoch)+'.png'), arr)
 
-
 def wasserstein_loss(y_true, y_pred):
     return backend.mean(y_true * y_pred)
-
-
-
 
 def train(epochs, batch_size=128, save_interval=25):
     dis = build_discrim()
@@ -248,29 +238,22 @@ def train(epochs, batch_size=128, save_interval=25):
     img = gen(z)
     dis.compile(loss=wasserstein_loss, optimizer=RMSprop(lr=0.00005), metrics=['accuracy'])
     dis.trainable = False
-
     valid = dis(img)
     gan = Model(z, valid)
     gan.compile(loss=wasserstein_loss, optimizer=RMSprop(lr=0.00005), metrics=['accuracy'])
-
-
-
     data=np.array(preprocess_data())
     X_train = (data.astype(np.float32) - 127.5) / 127.5
     half=int(batch_size/2)
     training_dis=[]
     training_gen=[]
-
     print(epochs, "(epochs) : ",batch_size,"(batchsize)")
+    
     for epoch in range(epochs):
-
     # train the discriminator
         for i in range(5):
             idx = np.random.randint(0, data.shape[0], half)
             real_im = X_train[idx]
-
             loss_dis_real=dis.train_on_batch(real_im,(-np.ones(half)))
-
             fake_im=gen.predict(generate_imgnoise(half))
             loss_dis_fake = dis.train_on_batch(fake_im, np.ones(half))
             # Clip critic weights
@@ -278,25 +261,18 @@ def train(epochs, batch_size=128, save_interval=25):
                 weights = l.get_weights()
                 weights = [np.clip(w, -0.01, 0.01) for w in weights]
                 l.set_weights(weights)
-
         #train the generator
-
         noise=generate_imgnoise(half)
         g_loss=gan.train_on_batch(noise, -np.ones(half))
-
         d_loss = 0.5 * np.add(loss_dis_real, loss_dis_fake)
         training_gen.append(g_loss)
         training_dis.append(d_loss)
         print("%d [D loss: %f] [G loss: %f]" % (epoch, d_loss[0], g_loss[0]))
-
-
         if epoch % save_interval == 0:
             save_img(epoch,gen)
     plt.plot(training_gen)
     plt.plot(training_dis)
     plt.show()
-
-
 # feature testing
 # valid_y = np.array([1] * 20)
 # print(valid_y)
